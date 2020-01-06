@@ -336,7 +336,7 @@ static void send_lines(spi_device_handle_t spi, int ypos, uint16_t *linedata)
         trans[4].tx_data[0]=0x2C;           //memory write
         trans[5].length=320*2*8*PARALLEL_LINES;          //Data length, in bits
         trans[5].flags=0; //undo SPI_TRANS_USE_TXDATA flag
-        is_trans_initialised = false;
+        is_trans_initialised = true;
     }
     trans[3].tx_data[0]=ypos>>8;        //Start page high
     trans[3].tx_data[1]=ypos&0xff;      //start page low
