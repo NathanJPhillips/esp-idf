@@ -311,36 +311,38 @@ static void send_lines(spi_device_handle_t spi, int ypos, uint16_t *linedata)
     //Transaction descriptors. Declared static so they're not allocated on the stack; we need this memory even when this
     //function is finished because the SPI driver needs access to it even while we're already calculating the next line.
     static spi_transaction_t trans[6];
-
-    //In theory, it's better to initialize trans and data only once and hang on to the initialized
-    //variables. We allocate them on the stack, so we need to re-init them each call.
-    for (x=0; x<6; x++) {
-        memset(&trans[x], 0, sizeof(spi_transaction_t));
-        if ((x&1)==0) {
-            //Even transfers are commands
-            trans[x].length=8;
-            trans[x].user=(void*)0;
-        } else {
-            //Odd transfers are data
-            trans[x].length=8*4;
-            trans[x].user=(void*)1;
+    //It's better to initialize trans and data only once and hang on to the initialized variables.
+    static bool is_trans_initialised = false;
+    if (!is_trans_initialised) {
+        for (x=0; x<6; x++) {
+            memset(&trans[x], 0, sizeof(spi_transaction_t));
+            if ((x&1)==0) {
+                //Even-numbered transfers are commands
+                trans[x].length=8;
+                trans[x].user=(void*)0;
+            } else {
+                //Odd-numbered transfers are data
+                trans[x].length=8*4;
+                trans[x].user=(void*)1;
+            }
+            trans[x].flags=SPI_TRANS_USE_TXDATA;
         }
-        trans[x].flags=SPI_TRANS_USE_TXDATA;
+        trans[0].tx_data[0]=0x2A;           //Column Address Set
+        trans[1].tx_data[0]=0;              //Start Col High
+        trans[1].tx_data[1]=0;              //Start Col Low
+        trans[1].tx_data[2]=(320)>>8;       //End Col High
+        trans[1].tx_data[3]=(320)&0xff;     //End Col Low
+        trans[2].tx_data[0]=0x2B;           //Page address set
+        trans[4].tx_data[0]=0x2C;           //memory write
+        trans[5].length=320*2*8*PARALLEL_LINES;          //Data length, in bits
+        trans[5].flags=0; //undo SPI_TRANS_USE_TXDATA flag
+        is_trans_initialised = false;
     }
-    trans[0].tx_data[0]=0x2A;           //Column Address Set
-    trans[1].tx_data[0]=0;              //Start Col High
-    trans[1].tx_data[1]=0;              //Start Col Low
-    trans[1].tx_data[2]=(320)>>8;       //End Col High
-    trans[1].tx_data[3]=(320)&0xff;     //End Col Low
-    trans[2].tx_data[0]=0x2B;           //Page address set
     trans[3].tx_data[0]=ypos>>8;        //Start page high
     trans[3].tx_data[1]=ypos&0xff;      //start page low
     trans[3].tx_data[2]=(ypos+PARALLEL_LINES)>>8;    //end page high
     trans[3].tx_data[3]=(ypos+PARALLEL_LINES)&0xff;  //end page low
-    trans[4].tx_data[0]=0x2C;           //memory write
     trans[5].tx_buffer=linedata;        //finally send the line data
-    trans[5].length=320*2*8*PARALLEL_LINES;          //Data length, in bits
-    trans[5].flags=0; //undo SPI_TRANS_USE_TXDATA flag
 
     //Queue all transactions.
     for (x=0; x<6; x++) {
